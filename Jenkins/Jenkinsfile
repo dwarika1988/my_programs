@@ -16,7 +16,8 @@ pipeline {
     }
     
     environment{
-        GIT_REPO_URL = 'https://github-hyc.scm.engit.cisco.com/jasper-nso/eob-config-nso-apis.git'
+        GIT_REPO_PERSONAL = 'https://github.com/dwarika1988/my_programs.git'
+        GIT_CRED_ID = 'dps_cred'
         //GIT_PAT = credentials('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')
     }
 
@@ -35,8 +36,10 @@ pipeline {
         }
         
         stage (ReadFile){
+            when { expression { env.BRANCH_NAME == 'main' } }
             steps{
                 script{
+                    echo "${env.GIT_BRANCH}"
                     fileContents=readFile 'jenkins.txt'
                 }
             }
@@ -46,13 +49,13 @@ pipeline {
         stage (PrintReadContent){
             
             options {
-                timeout(time:3, unit:'MINUTES')
+                timeout(time:2, unit:'MINUTES')
             }
         
             steps {
                 script{
                     sh """
-                       sleep  2.00m
+                       #sleep  1.00m
                         echo "$fileContents"
                     """
                 }
@@ -141,7 +144,10 @@ pipeline {
         }
         
         stage ('MongoDB_Image'){
-            when { expression { params.mongo_db_image == true } }
+            when { 
+                expression { params.mongo_db_image == true } 
+
+            }
             steps{
                 sh'''
                     #bash docker_mongo.sh
@@ -259,17 +265,72 @@ pipeline {
             }
         }
         
+        /*
+        stage ('GIT_PULL_BASH'){
+            steps{
+                withCredentials([usernamePassword(credentialsId: 'dps_cred', passwordVariable: 'REPO_PWD', usernameVariable: 'REPO_LOGIN')]){
+                    sh'''
+                        git clone https://$REPO_LOGIN:$(echo -n $REPO_PWD| hexdump -v -e '"x" 1/1 "%02X"' | tr x %)@github.com/dwarika1988/my_programs.git
+                    '''
+                }
+            }
+        }
+        */
         
-        //stage ('checkout'){
-        //    steps{
-        //        checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[url: GIT_REPO_URL,credentialsId:GIT_PAT]]])
-        //    }
-        //}
         
+        stage ('GIT_CHECKOUT'){
+            steps{
+                checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: GIT_REPO_PERSONAL,credentialsId:GIT_CRED_ID]]])
+            }
+        }
         
+        stage ('create and checkout to new branch'){
+            steps{
+                script{
+                    def gitBranchName = 'jenkins-test'
+				    sh "git config user.name 'dwarika1988'"
+		            sh "git config user.email 'dwarika1988@gmail.com'"
+		        
+		            def repoDirectory = 'my_programs'
+		            def repoAlreadyCloned = fileExists(repoDirectory)
+		        
+		            if (!repoAlreadyCloned) {
+		              sh "git clone -b $gitBranchName $GIT_REPO_PERSONAL $repoDirectory"
+		            }
+		    
+		            def branchExists = sh(script: "git show-ref --verify --quiet refs/heads/$gitBranchName", returnStatus: true) == 0
+		        
+		            if (!branchExists) {
+		               sh "git checkout -b $gitBranchName"
+		            }
+                }
+            }
+        }
         
+        stage ('make changes and git commit'){
+            steps{
+                script{
+                    def gitBranchName = 'jenkins-test'  // Replace with your branch name
+
         
+                            // Define the Git credentials ID configured in Jenkins
+                            def gitCredentialsId = 'dps_cred'
         
+                            // Set Git user name and email
+                            sh "git config user.name 'dwarika1988'"
+                            sh "git config user.email 'dwarika1988@gmail.com'"
+        
+                            // Make and commit changes
+                            sh "echo 'new changes' > git-checkout.txt"
+                            sh "git add . && git commit -m 'create branch and commit via Jenkins Pipeline'"
+        
+                            // Push the changes with the provided username and password
+                            withCredentials([usernamePassword(credentialsId: gitCredentialsId, passwordVariable: 'DPSgit@2023', usernameVariable: 'dwarika1988')]) {
+                              sh "git push origin $gitBranchName"
+                            }
+                }
+            }
+        }
     }
-    
 }
+
