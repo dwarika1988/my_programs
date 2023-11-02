@@ -1,0 +1,275 @@
+def fileContents
+pipeline {
+
+    agent any
+    
+    //triggers {
+    //    cron 'H/2 * * * *'
+    //}
+
+
+    parameters {
+        choice choices: ['INT', 'STR'], name: 'DATATYPE'
+        string defaultValue: 'dwsahu-VirtualBox', description: 'My Hostname', name: 'HOSTNAME'
+        booleanParam description: 'pull mongo db image', name: 'mongo_db_image'
+        booleanParam description: 'pull ubuntu image', name: 'mongo_ubuntu_image'
+    }
+    
+    environment{
+        GIT_REPO_URL = 'https://github-hyc.scm.engit.cisco.com/jasper-nso/eob-config-nso-apis.git'
+        //GIT_PAT = credentials('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')
+    }
+
+    
+    stages {
+        
+        stage (Stage1){
+            
+            steps{
+                script{
+                    sh """
+                        hostname
+                    """
+                }
+            }
+        }
+        
+        stage (ReadFile){
+            steps{
+                script{
+                    fileContents=readFile 'jenkins.txt'
+                }
+            }
+        }
+        
+        
+        stage (PrintReadContent){
+            
+            options {
+                timeout(time:3, unit:'MINUTES')
+            }
+        
+            steps {
+                script{
+                    sh """
+                       sleep  2.00m
+                        echo "$fileContents"
+                    """
+                }
+            }
+        }
+        
+        stage ('writeFile'){
+			steps{
+				writeFile file:'output_1.txt',text:'''line
+				line2
+				line3'''
+			}	
+		}
+        stage (ReadWroteFile){
+            steps{
+                sh"""
+                    cat output_1.txt
+                """
+            }
+        }
+        
+        
+        /*
+        stage ('RunTime-Input'){
+            steps {
+                scripts{
+                    input (message:'hello worlds', ok:'submit')
+                }
+            }
+        }
+        */
+        
+        stage('try-except'){
+		    steps{
+		        script{
+		            try{
+		                //sh'hostname'
+		                sh'hello'
+		            }catch (err){
+		                echo "Caught:${err}"
+		                currentBuild.result = 'UNSTABLE'
+		            }
+		            step([$class:'Mailer',recipients:'dwsahu@cisco.com'])
+		        }
+		    }
+		}
+        stage (FileHandling_Bash){
+            steps{
+                sh"""
+                    
+                    if [ -f "jenkins_training.txt" ];
+                    then
+                        echo "file_exists"
+                    else
+                        touch "jenkins_training.txt"
+                    fi
+                        
+                """
+            }
+        }
+        
+        stage (Choice){
+            steps{
+                sh'''
+                    datatype=${DATATYPE}
+                    echo "${DATATYPE}"
+                    a=10
+                    b=abc
+                    if [ ${datatype} = "INT" ];
+                    then
+                        echo "$a"
+                    elif [ ${datatype} = "STR" ];
+                    then
+                        echo "$b"
+                    fi
+                '''
+            }
+        }
+        
+        stage ('String-Data'){
+            steps{
+                sh'''
+                    echo "$HOSTNAME"
+                '''
+            }
+        }
+        
+        stage ('MongoDB_Image'){
+            when { expression { params.mongo_db_image == true } }
+            steps{
+                sh'''
+                    #bash docker_mongo.sh
+                    echo "mongodb"
+                    #echo "BA@Ba20130781" | sudo -S docker pull mongo
+                '''
+            }
+        }
+        
+        stage ('Ubuntu_Image'){
+            when { expression { params.mongo_ubuntu_image == true } }
+            steps{
+                sh'''
+                    #bash docker_ubuntu.sh
+                    echo "ubuntu"
+                    #echo "BA@Ba20130781" | sudo -S docker pull ubuntu
+                '''
+            }
+        }
+        
+        stage ('FileHandling'){
+            steps{
+                script{
+                    def filePath = '/var/lib/jenkins/workspace/MyJOb/Jenkins_testing.txt'
+                    def desiresPermissions = 'u+rwx'
+                    
+                    if(fileExists(filePath)){
+                        echo "file $filePath exists"
+                        
+                        def fileContent = readFile(filePath)
+                        //echo "$fileContent"
+                    } else {
+                        def fileContent
+                        fileContent ="\nhello and how are you"
+                        writeFile(file: filePath, text:fileContent)
+                        sh "chmod ${desiresPermissions} ${filePath}"
+                        
+                    }
+                }
+            }
+        }
+        
+        stage (DisplayName){
+            steps{
+                script{
+                    def displayBuildName = currentBuild.displayName
+                    echo "display name of the current build is $displayBuildName"
+                }
+            }
+        }
+        
+        stage('AnyOF Job Name Validation') {
+            when {
+                anyOf {
+                    expression {
+                        currentBuild.displayName ==~ /^[0-9]+$/
+                    }
+                    
+                    expression {
+                        def result = sh(script: '''
+                            #!/bin/bash
+                            if [ "$BUILD_NUMBER" -gt "10" ]; then
+                                exit 0  # Condition is true
+                            else
+                                exit 1  # Condition is fals
+                            fi
+                        ''', returnStatus: true)
+                        return result == 0
+                    }
+                }
+            }
+            steps {
+                script {
+                    def jobName = currentBuild.fullProjectName
+                    echo "Job name is valid: $jobName"
+                }
+            }
+        }
+        
+        stage('allOF Job Name Validation') {
+            when {
+                allOf {
+                    expression {
+                        def result = sh(script: '''
+                            #!/bin/bash
+                            a=10
+                            b=11
+                            if [ $a -le $b ]; then
+                                exit 0  # Condition is true
+                            else
+                                exit 1  # Condition is false
+                            fi
+                        ''', returnStatus: true)
+                        return result == 0
+                    }
+                    
+                    expression {
+                        def result = sh(script: '''
+                            #!/bin/bash
+                            if [ "$BUILD_NUMBER" -le "10" ]; then
+                                exit 0  # Condition is true
+                            else
+                                exit 1  # Condition is fals
+                            fi
+                        ''', returnStatus: true)
+                        return result == 0
+                    }
+                }
+            }
+            steps {
+                script {
+                    def jobName = currentBuild.fullProjectName
+                    echo "Job name is valid: $jobName"
+                }
+            }
+        }
+        
+        
+        //stage ('checkout'){
+        //    steps{
+        //        checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[url: GIT_REPO_URL,credentialsId:GIT_PAT]]])
+        //    }
+        //}
+        
+        
+        
+        
+        
+    }
+    
+}
