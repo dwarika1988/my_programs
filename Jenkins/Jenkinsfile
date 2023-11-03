@@ -7,7 +7,6 @@ pipeline {
     //    cron 'H/2 * * * *'
     //}
 
-
     parameters {
         choice choices: ['INT', 'STR'], name: 'DATATYPE'
         string defaultValue: 'dwsahu-VirtualBox', description: 'My Hostname', name: 'HOSTNAME'
