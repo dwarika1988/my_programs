@@ -55,6 +55,7 @@ pipeline {
                 script{
                     sh """
                        #sleep  1.00m
+		       echo "hello stage PrintReadContent"
                         echo "$fileContents"
                     """
                 }
